@@ -96,7 +96,7 @@ Some key applications include:
 
 ## Dataset YAML
 
-Ultralytics maintains an `open-images-v7.yaml` file that specifies the dataset paths, class names, and other configuration details required for training.
+Typically, datasets come with a YAML (Yet Another Markup Language) file that delineates the dataset's configuration. For the case of Open Images V7, a hypothetical `OpenImagesV7.yaml` might exist. For accurate paths and configurations, one should refer to the dataset's official repository or documentation.
 
 !!! example "OpenImagesV7.yaml"
 

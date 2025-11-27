@@ -187,7 +187,7 @@ To automatically annotate your dataset with the Ultralytics framework, use the `
 
 {% include "macros/sam-auto-annotate.md" %}
 
-## Citations and Acknowledgments
+## Citations and Acknowledgements
 
 If MobileSAM is helpful in your research or development, please consider citing the following paper:
 

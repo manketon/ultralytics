@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import pathlib
 
 import cv2
 import numpy as np
@@ -15,11 +16,12 @@ from ultralytics.utils.checks import check_yaml
 
 
 class YOLOv8Seg:
-    """YOLOv8 segmentation model for performing instance segmentation using ONNX Runtime.
+    """
+    YOLOv8 segmentation model for performing instance segmentation using ONNX Runtime.
 
     This class implements a YOLOv8 instance segmentation model using ONNX Runtime for inference. It handles
-    preprocessing of input images, running inference with the ONNX model, and postprocessing the results to generate
-    bounding boxes and segmentation masks.
+    preprocessing of input images, running inference with the ONNX model, and postprocessing the results to
+    generate bounding boxes and segmentation masks.
 
     Attributes:
         session (ort.InferenceSession): ONNX Runtime inference session for model execution.
@@ -41,15 +43,16 @@ class YOLOv8Seg:
         >>> cv2.imshow("Segmentation", results[0].plot())
     """
 
-    def __init__(self, onnx_model: str, conf: float = 0.25, iou: float = 0.7, imgsz: int | tuple[int, int] = 640):
-        """Initialize the instance segmentation model using an ONNX model.
+    def __init__(self, onnx_model: str, conf: float = 0.25, iou: float = 0.7, imgsz: int | tuple[int, int] = 640, datasetYamlPath: str = "coco8.yaml"):
+        """
+        Initialize the instance segmentation model using an ONNX model.
 
         Args:
             onnx_model (str): Path to the ONNX model file.
             conf (float, optional): Confidence threshold for filtering detections.
             iou (float, optional): IoU threshold for non-maximum suppression.
-            imgsz (int | tuple[int, int], optional): Input image size of the model. Can be an integer for square input
-                or a tuple for rectangular input.
+            imgsz (int | tuple[int, int], optional): Input image size of the model. Can be an integer for square
+                input or a tuple for rectangular input.
         """
         self.session = ort.InferenceSession(
             onnx_model,
@@ -59,12 +62,13 @@ class YOLOv8Seg:
         )
 
         self.imgsz = (imgsz, imgsz) if isinstance(imgsz, int) else imgsz
-        self.classes = YAML.load(check_yaml("coco8.yaml"))["names"]
+        self.classes = YAML.load(check_yaml(datasetYamlPath))["names"]
         self.conf = conf
         self.iou = iou
 
     def __call__(self, img: np.ndarray) -> list[Results]:
-        """Run inference on the input image using the ONNX model.
+        """
+        Run inference on the input image using the ONNX model.
 
         Args:
             img (np.ndarray): The original input image in BGR format.
@@ -78,7 +82,8 @@ class YOLOv8Seg:
         return self.postprocess(img, prep_img, outs)
 
     def letterbox(self, img: np.ndarray, new_shape: tuple[int, int] = (640, 640)) -> np.ndarray:
-        """Resize and pad image while maintaining aspect ratio.
+        """
+        Resize and pad image while maintaining aspect ratio.
 
         Args:
             img (np.ndarray): Input image in BGR format.
@@ -93,36 +98,49 @@ class YOLOv8Seg:
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
 
         # Compute padding
-        new_unpad = round(shape[1] * r), round(shape[0] * r)
+        new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
         dw, dh = (new_shape[1] - new_unpad[0]) / 2, (new_shape[0] - new_unpad[1]) / 2  # wh padding
 
         if shape[::-1] != new_unpad:  # resize
             img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
-        top, bottom = round(dh - 0.1), round(dh + 0.1)
-        left, right = round(dw - 0.1), round(dw + 0.1)
+        top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+        left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
         img = cv2.copyMakeBorder(img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114, 114, 114))
 
         return img
 
     def preprocess(self, img: np.ndarray, new_shape: tuple[int, int]) -> np.ndarray:
-        """Preprocess the input image before feeding it into the model.
+        """
+        Preprocess the input image before feeding it into the model.
 
         Args:
-            img (np.ndarray): The input image in BGR format.
+            img (np.ndarray): The input image in BGR format or grayscale.
             new_shape (tuple[int, int]): The target shape for resizing as (height, width).
 
         Returns:
-            (np.ndarray): Preprocessed image ready for model inference, with shape (1, 3, height, width) and normalized
-                to [0, 1].
+            (np.ndarray): Preprocessed image ready for model inference, with shape (1, 1或3, height, width) and
+                normalized to [0, 1]. 输出通道数为1或3，取决于输入图像是灰度图还是彩色图。
         """
+        # Resize and pad the image
         img = self.letterbox(img, new_shape)
-        img = img[..., ::-1].transpose([2, 0, 1])[None]  # BGR to RGB, BHWC to BCHW
-        img = np.ascontiguousarray(img)
-        img = img.astype(np.float32) / 255  # Normalize to [0, 1]
+
+        # 彩色图作为模型输入，则：Convert BGR to RGB and HWC to CHW format
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            img = img[..., ::-1].transpose([2, 0, 1])[None]  # BGR to RGB, BHWC to BCHW
+            #img = np.ascontiguousarray(img)
+            #img = img.astype(np.float32) / 255  # Normalize to [0, 1]
+        else:  # 灰度图作为模型输入，则：HWC to CHW format
+            # Add channel dimension (HWC -> CHW -> BCHW)
+            img = img[None, None, :, :]  # Add batch and channel dimensions
+
+        # Normalize to [0, 1]
+        img = np.ascontiguousarray(img, dtype=np.float32) / 255
+        print(f"img.shape:{img.shape}")
         return img
 
     def postprocess(self, img: np.ndarray, prep_img: np.ndarray, outs: list) -> list[Results]:
-        """Post-process model predictions to extract meaningful results.
+        """
+        Post-process model predictions to extract meaningful results.
 
         Args:
             img (np.ndarray): The original input image.
@@ -146,7 +164,8 @@ class YOLOv8Seg:
     def process_mask(
         self, protos: torch.Tensor, masks_in: torch.Tensor, bboxes: torch.Tensor, shape: tuple[int, int]
     ) -> torch.Tensor:
-        """Process prototype masks with predicted mask coefficients to generate instance segmentation masks.
+        """
+        Process prototype masks with predicted mask coefficients to generate instance segmentation masks.
 
         Args:
             protos (torch.Tensor): Prototype masks with shape (mask_dim, mask_h, mask_w).
@@ -171,12 +190,15 @@ if __name__ == "__main__":
     parser.add_argument("--source", type=str, default=str(ASSETS / "bus.jpg"), help="Path to input image")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
     parser.add_argument("--iou", type=float, default=0.7, help="NMS IoU threshold")
+    parser.add_argument("--dataYamlPath", type=str, default="coco8.yaml", help="the path of dataset yaml file")
     args = parser.parse_args()
 
-    model = YOLOv8Seg(args.model, args.conf, args.iou)
-    img = cv2.imread(args.source)
+    model = YOLOv8Seg(args.model, args.conf, args.iou, datasetYamlPath=args.dataYamlPath)
+    img = cv2.imread(args.source, cv2.IMREAD_UNCHANGED)
     results = model(img)
-
+    #根据路径args.source来获取保存路径
+    path_src = pathlib.Path(args.source)
+    results[0].save("./" + path_src.stem + "_rslt.png")
     cv2.imshow("Segmented Image", results[0].plot())
     cv2.waitKey(0)
     cv2.destroyAllWindows()

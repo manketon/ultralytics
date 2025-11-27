@@ -401,7 +401,8 @@ import ros_numpy
 
 
 def pointcloud2_to_array(pointcloud2: PointCloud2) -> tuple:
-    """Convert a ROS PointCloud2 message to a numpy array.
+    """
+    Convert a ROS PointCloud2 message to a numpy array.
 
     Args:
         pointcloud2 (PointCloud2): the PointCloud2 message
@@ -471,7 +472,8 @@ for index, class_id in enumerate(classes):
 
 
     def pointcloud2_to_array(pointcloud2: PointCloud2) -> tuple:
-        """Convert a ROS PointCloud2 message to a numpy array.
+        """
+        Convert a ROS PointCloud2 message to a numpy array.
 
         Args:
             pointcloud2 (PointCloud2): the PointCloud2 message
